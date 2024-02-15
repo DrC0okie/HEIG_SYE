@@ -1,0 +1,56 @@
+From 64d1aa38295a89649f11eb30bf2170c371379a17 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 17 Oct 2023 16:40:16 +0200
+Subject: [PATCH] End of lab 05
+
+---
+ usr/src/sh.c | 29 ++++++++++-------------------
+ 1 file changed, 10 insertions(+), 19 deletions(-)
+
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 1de882e..8a9d9c3 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -132,29 +132,20 @@ void process_cmd(void) {
+ 
+ 	/* General case - prepare to launch the application */
+ 
+-	// Detect if command is to be executed in the background
+-    for(i = 0; i < TOKEN_NR && tokens[i][0] != 0; i++) {
+-        if(!strcmp(tokens[i], "&")) {
+-            background = 1;
+-            tokens[i][0] = 0; // clear the '&' token
+-            break;
+-        }
+-    }
+-
+-    // If "&" is detected, all tokens after it are ignored
+-    if(background) {
+-        for(++i; i < TOKEN_NR; i++) {
+-            tokens[i][0] = 0;
+-        }
+-    }
+-
+-	/* Prepare the arguments to be passed to exec() syscall */
+ 	arg_pos = 0;
+-	while (tokens[arg_pos][0] != 0) {
++
++	while (tokens[arg_pos][0] != 0 && arg_pos < TOKEN_NR) {
++		// Detect if current token is "&"
++		if (strcmp(tokens[arg_pos], "&") == 0) {
++			background = 1;
++			break;
++		}
++
+ 		argv[arg_pos] = tokens[arg_pos];
+ 		arg_pos++;
+ 	}
+-	/* Terminate the list of args properly */
++
++	/*Terminate the argv array properly*/
+ 	argv[arg_pos] = NULL;
+ 
+ 	pid_child = fork();
+-- 
+GitLab
+

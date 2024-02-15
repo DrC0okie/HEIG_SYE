@@ -1,0 +1,57 @@
+From 9376ebd9fb5bec7a1772290b6ded8005b8ae9293 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Sun, 3 Dec 2023 18:04:54 +0100
+Subject: [PATCH] doc: enhanced report
+
+---
+ rapport.md | 18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/rapport.md b/rapport.md
+index 5b646ab..40e6d3f 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -18,9 +18,9 @@ int do_renice(uint32_t pid, uint32_t new_prio) {
+ 
+ 
+ 
+-## B) time_loop in background
++## B) time_loop en arrière-plan
+ 
+-When "time_loop" is executed, nothing happens until a command is issued (time_loop in our case). When the command is issued, the time_loop counter starts up until it is interrupted. This is because both processes have the same priority. There is no pre-emption between processe of the same priority.
++Quand la commande `time_loop` est executée dans le shell, rien ne se passe jusqu'à ce qu'une autre commande est executée:
+ 
+ ```
+ so3% time_loop &
+@@ -44,20 +44,22 @@ toupper.elf
+ so3% 
+ ```
+ 
+-The shell remains in the "running" state while time_loop is in "waiting" state. When the command is run, the shell switches to "waiting" and time_loop to "running". Launching the `ls` command "pauses" the shell because it will wait for the `ls` command to finish (waitpid). If time_loop was not run in the background, it would run directly (and this is what was observed).
++Le processus `time_loop`, une fois lancé en arrière-plan, ne démarre pas immédiatement. Il reste en état `Ready` sans passer à `Running`. Ceci est dû au fait que le processus shell, qui le lance, ne réalise pas de `waitpid`, le laissant ainsi en arrière-plan. Le shell, en conséquence, continue de fonctionner en état `Running`. De plus, étant donné que `time_loop` et le shell ont la même priorité, l'ordonnanceur ne fait pas de préemption.
+ 
+-## C) Lower priority shell
++Lorsqu'une nouvelle commande est exécutée pendant que `time_loop` est en arrière-plan, le shell, toujours actif, traite cette commande. Comme `time_loop` et le shell partagent la même priorité et que le shell n'attend pas activement `time_loop`, l'ordonnanceur continue de privilégier le shell. Ainsi, `time_loop` n'accède pas immédiatement au processeur et reste inactif jusqu'à ce que l'ordonnanceur lui attribue des ressources, probablement après que la commande en cours dans le shell soit terminée ou interrompue.
+ 
+-To change the shell's priority, we can use the renice function we've just coded. The shell has a pid of 1 and a priority of 10. So we'll set a priority to 9 for pid 1 with the following command: `renice 1 9`
++## C) Changement de priorité du shell
+ 
+-Next, we can run `time_loop &` as before and notice that this time execution is instantaneous. 
++Pour changer la priorité du shell, nous pouvons utiliser la fonction `renice` que nous venons d'implémenter. Le shell a un PID de 1 et une priorité de 10. Nous allons donc définir une priorité de 9  pour le PID 1 avec la commande suivante : `renice 1 9`. Ensuite, nous pouvons exécuter `time_loop &` comme auparavant et remarquer que cette fois-ci, l'exécution est instantanée.
+ 
+-As soon as `time_loop` is executed, and because it has a higer priority over the shell, the shell passes in "waiting" and `time_loop` passes in "running" until it has finished its operation and passes in the "zombie" state. Then the shell repasses in the "running state". This is because the when multiple processes have different a priority a rescheduling is performed.
++Dès que `time_loop` est exécuté, et parce qu'il a une priorité plus élevée que le shell, le shell passe en état `Waiting` et `time_loop` passe en état `Running` jusqu'à ce qu'il ait terminé son  opération et passe à l'état de "zombie". Ensuite, le shell repasse en  état `Running`. Ceci est dû au fait que lorsqu'il y a  plusieurs processus avec des priorités différentes, un réordonnancement  est effectué.
+ 
+ 
+ 
+ ## D) time_loop in blocking mode
+ 
+-If you change the shell priority and run `time_loop` in "blocking" mode. Then the counter will override the shell and we won't be able to return to the shell completely. You can write to the shell, but the counter continues. When you try to write, you'll find that you have to switch back and forth between the shell and the counter.
++Si on change la priorité du shell et que l'on lance `time_loop` en mode "bloquant", le compteur prendra le dessus sur le shell et on ne peut plus  revenir sur le shell complètement. On peut écrire sur le shell, mais le  compteur continue. On retrouve alors des passages entre le shell et le  compteur lorsque l'on esaie d'écrire.
+ 
++En mode bloquant, P(`time_loop`) utilise une attente passive (avec un `sleep`). Plutôt que de passer en état `Waiting`, le processus reste en état `Ready`. Cependant, le syscall `usleep` déclenche un changement de contexte, permettant ainsi à l'ordonnanceur de réévaluer l'état du processus.
+ 
++ Lorsque `time_loop` a une priorité inférieure ou égale à celle du shell, le shell conserve son statut de processus actif. En revanche, si `time_loop` possède une priorité supérieure à celle du shell, il est alors priorisé lors du changement de contexte.
+-- 
+GitLab
+

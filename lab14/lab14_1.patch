@@ -1,0 +1,169 @@
+From 4b5eb38962d9e952c4c5b7b6d1fa468e1ab3af31 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Sat, 27 Jan 2024 13:02:23 +0100
+Subject: [PATCH] Finished ls
+
+---
+ usr/src/ls.c | 114 ++++++++++++++++++++++++++++++++++++++++++++-------
+ 1 file changed, 99 insertions(+), 15 deletions(-)
+
+diff --git a/usr/src/ls.c b/usr/src/ls.c
+index d58c5d1..9937b09 100644
+--- a/usr/src/ls.c
++++ b/usr/src/ls.c
+@@ -26,36 +26,85 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
+-#include <dirent.h>
+ #include <sys/stat.h>
+ #include <syscall.h>
+ 
++#define KB 1024
++
+ /* Convert a size in bytes to a human readable format
+  * Only one number after the comma will be displayed
+  */
+-char *bytes_to_human_readable(const unsigned long int bytes, char *buf)
+-{
++char *bytes_to_human_readable(const unsigned long int bytes, char *buf) {
+ 	char *prefix[] = {"", "K", "M", "G", "T"};
++	size_t prefix_i = 0;
++	double size = (double) bytes;
+ 
+-	//TO COMPLETE: Convert to human readable format
++	while (size >= KB) {
++		size /= KB;
++		prefix_i++;
++	}
+ 
++	sprintf(buf, "%g%s", size, prefix[prefix_i]);
+ 	return buf;
+ }
+ 
+-char *attr_to_str(mode_t mod, char *buf)
+-{
++char *attr_to_str(mode_t mod, char *buf) {
+ 
+-	buf[0] = '-';
++	buf[0] = mod & AM_DIR ? mod & AM_SYM ? 'l' : 'd' : '-';
++	buf[1] = mod & AM_RD ? 'r' : '-';
++	buf[2] = mod & AM_WR ? 'w' : '-';
++	buf[3] = mod & AM_EX ? 'x' : '-';
+ 	buf[4] = 0;
+ 
+-	//TO COMPLETE: Interpret mode
+-
+ 	return buf;
+ }
+ 
+-void print_info_file(const char *file, int is_dir, int extended)
+-{
+-	int err;
++void close_fd(int fd, const char* file){
++	if (close(fd) < 0) {
++        printf("Error closing fd %s\n", file);
++    }
++}
++
++/**
++ * Convert a symbolic link to a string
++ * The string must be freed by the caller
++ * @param file the path to the symbolic link
++ * @return the string representation of the symbolic link
++*/
++char *link_to_str(const char *file) {
++
++    int fd = open(file, O_NOFOLLOW | O_PATH);
++    if (fd < 0) {
++        printf("Error opening file %s\n", file);
++        close_fd(fd, file);
++        return NULL;
++    }
++
++	char* buf = calloc(FILENAME_SIZE, sizeof(char));
++    if (buf == NULL) {
++        printf("Error during memory allocation\n");
++        close_fd(fd, file);
++        return NULL;
++    }
++
++    int err = read(fd, buf, FILENAME_SIZE - 1);
++    if (err < 0) {
++        printf("Error reading file %s\n", file);
++        close_fd(fd, file);
++        return NULL;
++    }
++
++    return buf;
++}
++
++/**
++ * Print the information of a file
++ * @param file the path to the file
++ * @param is_dir 1 if the file is a directory, 0 otherwise
++ * @param extended 1 if the extended information must be printed, 0 otherwise
++*/
++void print_info_file(const char *file, int is_dir, int extended) {
++
+ 	char date[80];
+ 	char size[80];
+ 	char modes[5];
+@@ -67,7 +116,43 @@ void print_info_file(const char *file, int is_dir, int extended)
+ 		printf("%s%s\n", file, is_dir ? "/" : "");
+ 
+ 	} else {
+-		//TO COMPLETE: Print extended informations about file
++		if (stat(file, &f_stat) < 0) {
++			printf("Error getting metadata\n");
++			return;
++		}
++
++		 // Convert modes
++        attr_to_str(f_stat.st_mode, modes);
++
++        // get last modif. time struct
++        time = f_stat.st_mtim;
++
++		// Get local time and convert it
++        tm = *localtime(&time);
++
++		// Format date (Unix time require to add 1900 to year and 1 to month)
++        sprintf(date, "%d-%d-%d %d:%d", 1900 + tm.tm_year, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min);
++
++        // Convert size to human readable format
++        bytes_to_human_readable(f_stat.st_size, size);
++
++		// Print the file information
++        printf("%s | %s | %s | %s%s", modes, date, size, file, is_dir ? "/" : "");
++
++        // Manage symbolic links
++        if (f_stat.st_mode & AM_SYM) {
++            char* link = link_to_str(file);
++
++			if (link == NULL) {
++				printf("\n");
++				return;
++			}
++
++            printf(" -> %s\n", link);
++            free(link);
++        } else {
++            printf("\n");
++        }
+ 	}
+ }
+ 
+@@ -78,8 +163,7 @@ void print_info_file(const char *file, int is_dir, int extended)
+  * entries of this subdir.
+  */
+ 
+-int main(int argc, char **argv)
+-{
++int main(int argc, char **argv) {
+ 	DIR *stream;
+ 	struct dirent *p_entry;
+ 	char *dir;
+-- 
+GitLab
+

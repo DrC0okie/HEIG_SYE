@@ -1,0 +1,195 @@
+From 88723113246d99e94fe73b1a896c4ee231957e8f Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 7 Nov 2023 17:22:03 +0100
+Subject: [PATCH] End of lab07
+
+---
+ usr/src/sh.c | 135 +++++++++++++++++++++++++++++++++++++++++++--------
+ 1 file changed, 116 insertions(+), 19 deletions(-)
+
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 3569113..58c31b2 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -28,11 +28,14 @@
+ #include <syscall.h>
+ #include <stdlib.h>
+ #include <signal.h>
++#include <stdbool.h>
+ 
+ #define TOKEN_NR	10
+ #define ARGS_MAX	16
++#define FILE_MAX	30
++#define TOKEN_MAX	80
+ 
+-char tokens[TOKEN_NR][80];
++char tokens[TOKEN_NR][TOKEN_MAX];
+ char prompt[] = "so3% ";
+ 
+ void parse_token(char *str) {
+@@ -53,10 +56,14 @@ void parse_token(char *str) {
+  * Process the command with the different tokens
+  */
+ void process_cmd(void) {
+-	int i, pid_child, arg_pos;
+-	char *argv[ARGS_MAX];
+-	char filename[30];
++	int i;
++	char *argv[ARGS_MAX], *argv2[ARGS_MAX];
++	char filename[FILE_MAX];
+ 	int pid, sig;
++	int is_pipe = 0;
++	int pipe_fd[2];
++	int arg1 = 0;
++	int arg2 = 0;
+ 
+ 	/* PRIVATE to SYE team */
+ 
+@@ -132,31 +139,121 @@ void process_cmd(void) {
+ 	/* General case - prepare to launch the application */
+ 
+ 	/* Prepare the arguments to be passed to exec() syscall */
+-	arg_pos = 0;
+-	while (tokens[arg_pos][0] != 0) {
+-		argv[arg_pos] = tokens[arg_pos];
+-		arg_pos++;
++	while (tokens[arg1][0] != 0) {
++
++		if (!strcmp(tokens[arg1], "|")) {
++			is_pipe = 1;
++			argv[arg1] = NULL;
++		} else {
++			if (is_pipe) {
++				argv2[arg2] = tokens[arg1];
++				arg2++;
++			} else
++				argv[arg1] = tokens[arg1];
++		}
++		arg1++;
+ 	}
++
+ 	/* Terminate the list of args properly */
+-	argv[arg_pos] = NULL;
++	if (is_pipe)
++		argv2[arg2] = NULL;
++	else
++		argv[arg1] = NULL;
++
++	if(is_pipe){
++		// Before forking, set up the pipe if char detected
++		if (pipe(pipe_fd) == -1) {
++			printf("Pipe child 1 failed.\n");
++			exit(EXIT_FAILURE);
++		}
++	}
+ 
+-	pid_child = fork();
+-	if (!pid_child) { /* Execution in the child */
++	// Always fork the first child (to handle the left-hand command)
++	int pid_child1 = fork();
++	if (pid_child1 == -1) {
++		printf("Fork child 1 failed.\n");
++		if(is_pipe) {
++        	close(pipe_fd[0]);
++        	close(pipe_fd[1]);
++    	}
+ 
+-		strcpy(filename, tokens[0]);
+-		argv[0] = tokens[0];
++		exit(EXIT_FAILURE);
++	}
++
++	if (pid_child1 == 0) {
++
++		// Child 1 code
++		if(is_pipe){
++			//Pipe management only if we detected the pipe char
++
++			// Close unused read-end
++			close(pipe_fd[0]);
+ 
+-		/* We are looking for an executable with .elf extension */
++			// Redirect standard output to the pipe's write-end
++			dup2(pipe_fd[1], STDOUT_FILENO);
++		}
++		
++		// Always execute the first command
++		strncpy(filename, argv[0], FILE_MAX);
+ 		strcat(filename, ".elf");
+ 
+ 		if (execv(filename, argv) == -1) {
+-			printf("%s: exec failed.\n", argv[0]);
+-			exit(-1);
++
++			if(!is_pipe){
++				// Write in stdout only if no pipe redirection
++				printf("%s: exec failed.\n", argv[0]);
++			} else {
++				close(pipe_fd[1]);
++			}
++
++			exit(EXIT_FAILURE);
++		}
++	}
++
++	if(is_pipe){
++
++		// Fork the second child (to handle the right-hand command) if pipe detected
++		int pid_child2 = fork();
++		if (pid_child2 == -1) {
++			printf("Child2 fork failed.\n");
++			exit(EXIT_FAILURE);
+ 		}
+ 
+-	} else { /* Execution in the parent */
++		// Child2's code
++		if (pid_child2 == 0) {
++			
++			// Close unused write-end
++			close(pipe_fd[1]); 
++
++			// Redirect standard input from the pipe's read-end
++			dup2(pipe_fd[0], STDIN_FILENO);
+ 
+-		waitpid(pid_child, NULL, 0);
++			// Execute the right-hand command
++			strncpy(filename, argv2[0], FILE_MAX);
++			strcat(filename, ".elf");
++
++			if (execv(filename, argv2) == -1) {
++				printf("%s: exec failed.\n", argv2[0]);
++				close(pipe_fd[0]);
++				exit(EXIT_FAILURE);
++			}
++
++		} else {
++
++			// Parent's code in case of pipe char detected
++
++			// Parent closes both ends of the pipe, it no longer needs these
++			close(pipe_fd[0]);
++			close(pipe_fd[1]);
++
++			// wait for the children
++			waitpid(pid_child1, NULL, 0);
++			waitpid(pid_child2, NULL, 0);
++		}
++	}
++	else {
++		// Parent's code in case of pipe char not detected, wait or the only child
++		waitpid(pid_child1, NULL, 0);
+ 	}
+ }
+ 
+@@ -173,7 +270,7 @@ void sigint_sh_handler(int sig) {
+  */
+ void main(int argc, char *argv[])
+ {
+-	char user_input[80];
++	char user_input[TOKEN_MAX];
+ 	int i;
+ 	struct sigaction sa;
+ 
+-- 
+GitLab
+

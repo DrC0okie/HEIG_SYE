@@ -1,0 +1,227 @@
+From 70186c27094def98b212589741c9148ecf867d8b Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 10 Oct 2023 16:46:26 +0200
+Subject: [PATCH] End of lab04
+
+---
+ rapport.md                     | 68 ++++++++++++++++++++++++++++++++++
+ so3/include/process.h          |  1 +
+ so3/include/syscall.h          |  1 +
+ so3/kernel/process.c           | 59 +++++++++++++++++++++++++++++
+ so3/kernel/syscalls.c          |  7 ++++
+ usr/lib/libc/crt0.S            |  1 +
+ usr/lib/libc/include/syscall.h |  1 +
+ 7 files changed, 138 insertions(+)
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..a0831a8 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,68 @@
++# SYE Laboratory 4
++
++**Author**: Timothée Van Hove
++**Date**: 10.10.2023
++
++## Introduction
++In this lab, we had to modify the user space and the kernel space of the OS to implement a new syscall that is a copy of the fork already implemented in the OS.
++All the operation described below have been done in the order they are written.
++
++## Kernel space
++
++### so3/include/syscall.h 
++
++First, we need to add a definition for the system call. This means adding the name of the system call, as well as a number representing it.
++
++```c
++#define SYSCALL_FORK2 		88
++```
++
++### so3/include/process.h 
++
++Then, we must add the declaration of the "do_fork2" function. This will be the method used by the kernel when the user wants to fork a process.
++
++```c
++int do_fork2(void);
++```
++
++### so3/kernel/process.c 
++
++It's simply the definition of the "do_fork2" method we declared in the last step. just have to copy the "do_fork" function that was already implemented and modified it to have a customized display. When the function is called, the function will do exactly what the do_fork function does with an additional message.
++
++```c
++//Just added this printk in the copied function
++printk("fork2(): process %s with pid %d forked to child with pid %d\n", parent->name, parent->pid, newp->pid);
++```
++
++### so3/kernel/syscalls.c 
++
++Here, we need to add our system call to the switch. This addition will make the link between the definition of the call (its number) defined in syscall.h and the function being executed, which can be found in process.h and process.c.
++
++```c
++// Just add this case in the switch
++case SYSCALL_FORK2:
++    result = do_fork2();
++    break;
++```
++
++## User space
++
++### usr/lib/libc/include/syscall.h
++
++Add the system call and its identifying number to the user part, exactly how we did in the kernel space
++
++```c
++#define syscallFork2 		    88
++```
++
++### usr/lib/libc/crt0.S 
++
++We have to define the stub in assembly for our system call. I simply mimic how the original syscallFork was implemented
++
++```assembly
++SYSCALLSTUB sys_fork2, 			syscallFork2
++```
++
++## Conclusion
++
++To introduce a new system call, we must focus on two primary components. First, we must specify the function of our system call and then embed its implementation within the kernel. Next, we need to establish a connection to the user-space component, commonly referred to as the "stub." This stub initiates a software interrupt. Once both components are in place, our new system call is ready for use. During execution, the call interacts with the user-space component, after which the system seamlessly transitions to kernel space.
+diff --git a/so3/include/process.h b/so3/include/process.h
+index dd9d656..3434978 100644
+--- a/so3/include/process.h
++++ b/so3/include/process.h
+@@ -138,6 +138,7 @@ uint32_t do_getpid(void);
+ 
+ int do_execve(const char *filename, char **argv, char **envp);
+ int do_fork(void);
++int do_fork2(void); // Added the function declaration for sys_fork2
+ void do_exit(int exit_status);
+ int do_waitpid(int pid, uint32_t *wstatus, uint32_t options);
+ 
+diff --git a/so3/include/syscall.h b/so3/include/syscall.h
+index 3370872..01d87d1 100644
+--- a/so3/include/syscall.h
++++ b/so3/include/syscall.h
+@@ -88,6 +88,7 @@
+ 
+ #define SYSCALL_SETSOCKOPT	110
+ #define SYSCALL_RECVFROM	111
++#define SYSCALL_FORK2       112 //New syscall fork2
+ 
+ // LEI: 2021_lab05
+ #define SYSCALL_TRANSLATE   120
+diff --git a/so3/kernel/process.c b/so3/kernel/process.c
+index 0288cdf..52a2c47 100644
+--- a/so3/kernel/process.c
++++ b/so3/kernel/process.c
+@@ -840,6 +840,65 @@ int do_fork(void)
+ 	return newp->pid;
+ }
+ 
++int do_fork2(void)
++{
++	pcb_t *newp, *parent;
++	unsigned long flags;
++
++	flags = local_irq_save();
++
++	parent = current()->pcb;
++
++	/* For the time being, we *only* authorize to fork() from the main thread */
++	if (current() != parent->main_thread) {
++		printk("%s: forking from a thread other than the main thread is not allowed so far ...\n", __func__);
++		return -1;
++	}
++
++	/* Duplicate the elements of the parent process into the child */
++	newp = duplicate_process(parent);
++
++	/* Copy the user space area of the parent process */
++	duplicate_user_space(parent, newp);
++
++	/* At the moment, we spawn the main_thread only in the child. In the future, we will have to create a thread for each existing threads
++	 * in the parent process.
++	 */
++	sprintf(newp->name, "%s_child_%d", parent->name, newp->pid);
++
++	newp->main_thread = user_thread(NULL, newp->name, (void *) arch_get_args_base(), newp);
++
++	/* Copy the kernel stack of the main thread */
++	memcpy((void *) get_kernel_stack_top(newp->main_thread->stack_slotID) - THREAD_STACK_SIZE,
++	       (void *) get_kernel_stack_top(parent->main_thread->stack_slotID) - THREAD_STACK_SIZE, THREAD_STACK_SIZE);
++
++	/*
++	 * Preserve the current value of all registers concerned by this execution so that
++	 * the new thread will be able to pursue its execution once scheduled.
++	 */
++
++	__save_context(newp->main_thread, get_kernel_stack_top(newp->main_thread->stack_slotID));
++
++	/* The main process thread is ready to be scheduled for its execution.*/
++	newp->state = PROC_STATE_READY;
++	
++	BUG_ON(!local_irq_is_disabled());
++
++	/* Prepare to perform scheduling to check if a context switch is required. */
++	raise_softirq(SCHEDULE_SOFTIRQ);
++
++	local_irq_restore(flags);
++
++	/*Prints the information asked in the lab doc*/
++	printk("fork2(): process %s with pid %d forked to child with pid %d\n", parent->name, parent->pid, newp->pid);
++
++	/* Return the PID of the child process. The child will do not execute this code, since
++	 * it jumps to the ret_from_fork in context.S
++	 */
++
++	return newp->pid;
++}
++
+ /*
+  * Terminates a process.
+  * All allocated resources should be released except its PCB which still contains the exit code.
+diff --git a/so3/kernel/syscalls.c b/so3/kernel/syscalls.c
+index 03c6a06..eedf738 100644
+--- a/so3/kernel/syscalls.c
++++ b/so3/kernel/syscalls.c
+@@ -107,6 +107,13 @@ long syscall_handle(unsigned long r0, unsigned long r1, unsigned long r2, unsign
+ 		case SYSCALL_EXECVE:
+ 			result = do_execve((const char *) r0, (char **) r1, (char **) r2);
+ 			break;
++			
++		/*make the link between the definition of the call (its number) 
++		defined in syscall.h and the function being executed, which can be found 
++		in process.h and process.c.*/
++		case SYSCALL_FORK2:
++    		result = do_fork2();
++    		break;
+ 
+ 		case SYSCALL_FORK:
+ 			result = do_fork();
+diff --git a/usr/lib/libc/crt0.S b/usr/lib/libc/crt0.S
+index fc15eb0..9ffad66 100755
+--- a/usr/lib/libc/crt0.S
++++ b/usr/lib/libc/crt0.S
+@@ -120,6 +120,7 @@ SYSCALLSTUB sys_execve,			syscallExecve
+ SYSCALLSTUB sys_waitpid,		syscallWaitpid
+ SYSCALLSTUB sys_pause, 			syscallPause
+ SYSCALLSTUB sys_fork, 			syscallFork
++SYSCALLSTUB sys_fork2, 			syscallFork2
+ SYSCALLSTUB sys_readdir, 		syscallReaddir
+ SYSCALLSTUB sys_chdir, 			syscallChdir
+ SYSCALLSTUB sys_getcwd, 		syscallGetcwd
+diff --git a/usr/lib/libc/include/syscall.h b/usr/lib/libc/include/syscall.h
+index 651c4bc..b173302 100644
+--- a/usr/lib/libc/include/syscall.h
++++ b/usr/lib/libc/include/syscall.h
+@@ -94,6 +94,7 @@
+ 
+ #define syscallSetsockopt		110
+ #define syscallRecvfrom			111
++#define syscallFork2            112 //New syscall fork2
+ 
+ // LEI: 2021_lab05
+ #define syscallTranslate        120
+-- 
+GitLab
+

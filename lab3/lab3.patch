@@ -1,0 +1,71 @@
+From 22e0b1bf3a6d88c73e5f9af4f32cba471736f4f6 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 3 Oct 2023 16:39:47 +0200
+Subject: [PATCH] End of lab03
+
+---
+ so3/devices/timer/arm_timer.c | 5 +++++
+ so3/include/version.h         | 9 +++------
+ usr/src/sh.c                  | 7 +++++++
+ 3 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/so3/devices/timer/arm_timer.c b/so3/devices/timer/arm_timer.c
+index 7ced21a..af909fa 100644
+--- a/so3/devices/timer/arm_timer.c
++++ b/so3/devices/timer/arm_timer.c
+@@ -57,6 +57,11 @@ static void next_event(u32 next) {
+ }
+ 
+ static irq_return_t timer_isr(int irq, void *dev) {
++
++	if(!(jiffies % 80)){
++		printk("Nombre d'interruptions : %lld\n", jiffies);
++	}
++
+ 	unsigned long ctrl;
+ 	arm_timer_t *arm_timer;
+ 
+diff --git a/so3/include/version.h b/so3/include/version.h
+index 49e2d42..0d16add 100644
+--- a/so3/include/version.h
++++ b/so3/include/version.h
+@@ -19,15 +19,12 @@
+ 
+ #ifndef VERSION_H
+ 
+-/* CHANGES 2023.6.0 */
++/* CHANGES 2023.6.1 */
+ /**
+- * - Removed CONFIG_RAM_BASE and CONFIG_RAM_SIZE. These information are available from the device tree.
+- * - Removed old meminfo structure which is not used anymore.
+- * - Removed avz_guest_phys_offset and rely on avz_shared to initialize mem_info structure (phys base + size)
+- * - Upgrade U-boot to 2022.04
++ * - the shell now display the list of input tokens
+  */
+ 
+-#define SO3_KERNEL_VERSION "2023.6.0"
++#define SO3_KERNEL_VERSION "2023.6.1"
+ 
+ #endif /* VERSION_H */
+ 
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 473e129..2e74cd3 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -197,6 +197,13 @@ void main(int argc, char *argv[])
+ 		if (strcmp(user_input, ""))
+ 			parse_token(user_input);
+ 
++		//Parse the tokens and displays them
++		for (i = 0; i < TOKEN_NR; i++) {
++			if(tokens[i][0] != 0){
++				printf("%s\n", tokens[i]);
++			}
++		}
++
+ 		/* Check if there is at least one token to be processed */
+ 		if (tokens[0][0] != 0)
+ 			process_cmd();
+-- 
+GitLab
+

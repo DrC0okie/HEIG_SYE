@@ -1,0 +1,43 @@
+From 9a70c7e5d1bbfc0efa572f863beee481ac2e9aa5 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 7 Nov 2023 17:32:54 +0100
+Subject: [PATCH] End of lab07
+
+---
+ usr/src/sh.c | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 58c31b2..1be4708 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -210,6 +210,9 @@ void process_cmd(void) {
+ 		}
+ 	}
+ 
++	// Wait for the first child
++	waitpid(pid_child1, NULL, 0);
++
+ 	if(is_pipe){
+ 
+ 		// Fork the second child (to handle the right-hand command) if pipe detected
+@@ -246,15 +249,10 @@ void process_cmd(void) {
+ 			close(pipe_fd[0]);
+ 			close(pipe_fd[1]);
+ 
+-			// wait for the children
+-			waitpid(pid_child1, NULL, 0);
++			// wait for the second child
+ 			waitpid(pid_child2, NULL, 0);
+ 		}
+ 	}
+-	else {
+-		// Parent's code in case of pipe char not detected, wait or the only child
+-		waitpid(pid_child1, NULL, 0);
+-	}
+ }
+ 
+ /*
+-- 
+GitLab
+

@@ -1,0 +1,46 @@
+From 2133513bd8e7c5afdff7794a188f257cec68f625 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Timoth=C3=A9e=20Van=20Hove?= <timothee.vanhove@heig-vd.ch>
+Date: Tue, 10 Oct 2023 15:06:08 +0000
+Subject: [PATCH] Update the rapport.md file
+
+---
+ rapport.md | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/rapport.md b/rapport.md
+index a0831a8..c7f0cf1 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -1,6 +1,7 @@
+ # SYE Laboratory 4
+ 
+ **Author**: Timothée Van Hove
++
+ **Date**: 10.10.2023
+ 
+ ## Introduction
+@@ -14,7 +15,7 @@ All the operation described below have been done in the order they are written.
+ First, we need to add a definition for the system call. This means adding the name of the system call, as well as a number representing it.
+ 
+ ```c
+-#define SYSCALL_FORK2 		88
++#define SYSCALL_FORK2 		112
+ ```
+ 
+ ### so3/include/process.h 
+@@ -49,10 +50,10 @@ case SYSCALL_FORK2:
+ 
+ ### usr/lib/libc/include/syscall.h
+ 
+-Add the system call and its identifying number to the user part, exactly how we did in the kernel space
++Add the system call and its identifying number to the user part, exactly how we did in the kernel space. This number must be identical to the one defined in the kernel space
+ 
+ ```c
+-#define syscallFork2 		    88
++#define syscallFork2 		    112
+ ```
+ 
+ ### usr/lib/libc/crt0.S 
+-- 
+GitLab
+

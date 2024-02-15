@@ -1,0 +1,100 @@
+From 6e943950724c98d2c75a2f77152a012b63386489 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 28 Nov 2023 17:12:05 +0100
+Subject: [PATCH] working on question d
+
+---
+ rapport.md           | 63 ++++++++++++++++++++++++++++++++++++++++++++
+ so3/kernel/process.c |  7 +++++
+ 2 files changed, 70 insertions(+)
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..5b646ab 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,63 @@
++# Rapport laboratoire 
++
++## A) Implementing do_renice
++
++```C
++int do_renice(uint32_t pid, uint32_t new_prio) {
++	//TO COMPLETE
++	if(pid < 0 || new_prio < 1) {
++		return -1;
++	} else {
++		pcb_t* pcb = find_proc_by_pid(pid);
++		pcb->main_thread->prio = new_prio;
++	}
++
++	return 0;
++}
++```
++
++
++
++## B) time_loop in background
++
++When "time_loop" is executed, nothing happens until a command is issued (time_loop in our case). When the command is issued, the time_loop counter starts up until it is interrupted. This is because both processes have the same priority. There is no pre-emption between processe of the same priority.
++
++```
++so3% time_loop &
++[2]
++so3% ls
++[2] 0
++(...)
++[2] 29
++dev/
++reds.bin
++cat.elf
++echo.elf
++hello.elf
++ls.elf
++sh.elf
++sleep.elf
++test_fork2.elf
++time_loop.elf
++toupper.elf
++[2] Terminated
++so3% 
++```
++
++The shell remains in the "running" state while time_loop is in "waiting" state. When the command is run, the shell switches to "waiting" and time_loop to "running". Launching the `ls` command "pauses" the shell because it will wait for the `ls` command to finish (waitpid). If time_loop was not run in the background, it would run directly (and this is what was observed).
++
++## C) Lower priority shell
++
++To change the shell's priority, we can use the renice function we've just coded. The shell has a pid of 1 and a priority of 10. So we'll set a priority to 9 for pid 1 with the following command: `renice 1 9`
++
++Next, we can run `time_loop &` as before and notice that this time execution is instantaneous. 
++
++As soon as `time_loop` is executed, and because it has a higer priority over the shell, the shell passes in "waiting" and `time_loop` passes in "running" until it has finished its operation and passes in the "zombie" state. Then the shell repasses in the "running state". This is because the when multiple processes have different a priority a rescheduling is performed.
++
++
++
++## D) time_loop in blocking mode
++
++If you change the shell priority and run `time_loop` in "blocking" mode. Then the counter will override the shell and we won't be able to return to the shell completely. You can write to the shell, but the counter continues. When you try to write, you'll find that you have to switch back and forth between the shell and the counter.
++
++
+diff --git a/so3/kernel/process.c b/so3/kernel/process.c
+index 9f0834e..d736ac7 100644
+--- a/so3/kernel/process.c
++++ b/so3/kernel/process.c
+@@ -99,7 +99,14 @@ pcb_t *find_proc_by_pid(uint32_t pid) {
+ 
+ int do_renice(uint32_t pid, uint32_t new_prio) {
+ 	//TO COMPLETE
++	if(pid < 0 || new_prio < 1) {
++		return -1;
++	} else {
++		pcb_t* pcb = find_proc_by_pid(pid);
++		pcb->main_thread->prio = new_prio;
++	}
+ 
++	return 0;
+ }
+ 
+ 
+-- 
+GitLab
+

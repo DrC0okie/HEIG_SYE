@@ -1,0 +1,83 @@
+From f9120066830bde154ff430c96ac3641a104e9540 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 26 Sep 2023 16:38:11 +0200
+Subject: [PATCH] Finished lab02
+
+---
+ so3/kernel/main.c      |  2 +-
+ usr/src/CMakeLists.txt |  2 ++
+ usr/src/hello.c        | 17 +++++++++++++++++
+ usr/src/sh.c           |  2 +-
+ 4 files changed, 21 insertions(+), 2 deletions(-)
+ create mode 100644 usr/src/hello.c
+
+diff --git a/so3/kernel/main.c b/so3/kernel/main.c
+index b0b72e0..446cea7 100644
+--- a/so3/kernel/main.c
++++ b/so3/kernel/main.c
+@@ -134,7 +134,7 @@ void kernel_start(void) {
+ 
+ 	calibrate_delay();
+ 
+-	hidden_init();
++	//hidden_init();
+ 
+ 	/*
+ 	 * Perform the rest of bootstrap sequence in a separate thread, so that
+diff --git a/usr/src/CMakeLists.txt b/usr/src/CMakeLists.txt
+index 783c34a..ee69d1f 100644
+--- a/usr/src/CMakeLists.txt
++++ b/usr/src/CMakeLists.txt
+@@ -3,11 +3,13 @@ add_executable(sh.elf sh.c)
+ add_executable(ls.elf ls.c)
+ add_executable(echo.elf echo.c)
+ add_executable(cat.elf cat.c)
++add_executable(hello.elf hello.c)
+ 
+ 
+ target_link_libraries(sh.elf c)
+ target_link_libraries(ls.elf c)
+ target_link_libraries(echo.elf c)
+ target_link_libraries(cat.elf c)
++target_link_libraries(hello.elf c)
+ 
+ 
+diff --git a/usr/src/hello.c b/usr/src/hello.c
+new file mode 100644
+index 0000000..f866eb3
+--- /dev/null
++++ b/usr/src/hello.c
+@@ -0,0 +1,17 @@
++#include <stdio.h>
++
++int main(int argc, char *argv[])
++{
++    char message[] = "Hello world!";
++    char* address = &message[0];
++    printf("Original Message: %s\n", message);
++    printf("Message address starting at %p \n", address);
++
++    for(size_t i = 0; i < strlen(message); i++) {
++        *(char*)(0xbffcef28 + i) += 1;  // increment the character
++    }
++
++    printf("Modified Message: %s\n", message);
++
++    return 0;
++}
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 4f834a8..7f68775 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -198,7 +198,7 @@ void main(int argc, char *argv[])
+ 		if (strcmp(user_input, ""))
+ 			parse_token(user_input);
+ 
+-		*ptr = 0xdeadbeef;
++		//*ptr = 0xdeadbeef;
+ 
+ 		/* Check if there is at least one token to be processed */
+ 		if (tokens[0][0] != 0)
+-- 
+GitLab
+

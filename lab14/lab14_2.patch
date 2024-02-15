@@ -1,0 +1,87 @@
+From 6da2e86b69ad02c581719ee2aef2cf38021d6406 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Sat, 27 Jan 2024 13:41:50 +0100
+Subject: [PATCH] printf is bugged... end of lab
+
+---
+ usr/src/ln.c | 22 +++++++++++++++++++++-
+ usr/src/ls.c | 11 ++++++-----
+ 2 files changed, 27 insertions(+), 6 deletions(-)
+
+diff --git a/usr/src/ln.c b/usr/src/ln.c
+index 1bfb131..f3e4edf 100644
+--- a/usr/src/ln.c
++++ b/usr/src/ln.c
+@@ -23,6 +23,26 @@ int main(int argc, char *argv[])
+ 	f_src = argv[1];
+ 	f_dst = argv[2];
+ 
+-	// TO COMPLETE
++	if (*f_src == 0 || *f_dst == 0) {
++        printf("Invalid file name\n");
++        exit(1);
++    }
++
++    fd_src = open(f_src, O_RDONLY);
++    if (fd_src < 0) {
++        printf("Error opening the file %s\n", f_src);
++        exit(1);
++    }
++
++    if (sys_symlink(fd_src, f_dst) < 0) {
++        printf("Error: cannot create symlink %s\n", f_dst);
++        exit(1);
++    }
++    
++    if (close(fd_src) < 0) {
++        printf("Error: cannot close file %s\n", f_src);
++        exit(1);
++    }
++
+ 	return 0;
+ }
+diff --git a/usr/src/ls.c b/usr/src/ls.c
+index 9937b09..7ec5ac3 100644
+--- a/usr/src/ls.c
++++ b/usr/src/ls.c
+@@ -36,15 +36,16 @@
+  */
+ char *bytes_to_human_readable(const unsigned long int bytes, char *buf) {
+ 	char *prefix[] = {"", "K", "M", "G", "T"};
+-	size_t prefix_i = 0;
++	size_t i = 0;
+ 	double size = (double) bytes;
+ 
+ 	while (size >= KB) {
+ 		size /= KB;
+-		prefix_i++;
++		i++;
+ 	}
+ 
+-	sprintf(buf, "%g%s", size, prefix[prefix_i]);
++	// Note: Seems like printf is bugged with %g and %f
++	sprintf(buf, "%g%s", size, prefix[i]);
+ 	return buf;
+ }
+ 
+@@ -75,7 +76,7 @@ char *link_to_str(const char *file) {
+ 
+     int fd = open(file, O_NOFOLLOW | O_PATH);
+     if (fd < 0) {
+-        printf("Error opening file %s\n", file);
++        printf("Error opening the file %s\n", file);
+         close_fd(fd, file);
+         return NULL;
+     }
+@@ -89,7 +90,7 @@ char *link_to_str(const char *file) {
+ 
+     int err = read(fd, buf, FILENAME_SIZE - 1);
+     if (err < 0) {
+-        printf("Error reading file %s\n", file);
++        printf("Error reading the file %s\n", file);
+         close_fd(fd, file);
+         return NULL;
+     }
+-- 
+GitLab
+

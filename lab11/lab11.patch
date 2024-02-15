@@ -1,0 +1,93 @@
+From 92e0c68a57e61f1e5b748192d93022591fb85e32 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 12 Dec 2023 16:52:14 +0100
+Subject: [PATCH] End of lab11
+
+---
+ usr/host/memsim.c | 36 +++++++++++++++++++++++++++++-------
+ 1 file changed, 29 insertions(+), 7 deletions(-)
+
+diff --git a/usr/host/memsim.c b/usr/host/memsim.c
+index 8cd58ef..2b9ea58 100644
+--- a/usr/host/memsim.c
++++ b/usr/host/memsim.c
+@@ -19,11 +19,14 @@
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <string.h>
++#include <stdint.h>
+ 
+ 
+ /* Number of memory pages */
+ #define MEMORY_PAGE_NUM         256
+ #define MEMORY_PAGE_SIZE        256
++#define OFFSET                  8
++#define MASK                    0xFF
+ 
+ uint16_t page_table[MEMORY_PAGE_NUM];
+ 
+@@ -38,10 +41,9 @@ uint8_t main_mem[MEMORY_PAGE_NUM][MEMORY_PAGE_SIZE] = {0};
+  * 
+  * @return  0 on success, -1 on error.
+  */
+-int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+-{
+-    // TO COMPLETE
++int virt_to_pte(uint16_t vaddr, uint16_t *pte){
+ 
++    *pte = page_table[vaddr >> OFFSET];
+     return 0;
+ }
+ 
+@@ -56,14 +58,23 @@ int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+  */
+ int get_byte(uint16_t vaddr, uint8_t *byte) {
+ 
+-    // TO COMPLETE
++    uint16_t pte, page_num;
++    int success = virt_to_pte(vaddr, &pte);
++    if (success < 0) {
++        return -1;
++    }
++
++    // get rid of the flags
++    page_num = pte >> OFFSET;
++
++	*byte = main_mem[page_num][vaddr & MASK];
+ 
+     return 0;
+ }
+ 
+ /**
+  * @brief   Write a byte to memory. For step 3 also checks RWX and Valid bit.
+- *          Uses virt to phys to get the physical address.
++ *          Uses virt to pte to get the physical address.
+  * @param   vaddr virtual address
+  * @param   byte value to write   
+  * 
+@@ -71,9 +82,20 @@ int get_byte(uint16_t vaddr, uint8_t *byte) {
+  *          to print an error message
+  */
+ int store_byte(uint16_t vaddr, uint8_t byte) {
+-    // TO COMPLETE 
++
++    uint16_t pte, page_num;
++    int success = virt_to_pte(vaddr, &pte);
++    if (success < 0) {
++        return -1;
++    }
++
++    // get rid of the flags
++    page_num = pte >> OFFSET;
++
++    main_mem[page_num][vaddr & MASK] = byte;
++
+     return 0;
+-}
++ }
+ 
+ /**
+  * @brief   Prints an entire page. Can be used for debug.
+-- 
+GitLab
+

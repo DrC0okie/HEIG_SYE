@@ -1,0 +1,38 @@
+From c5a715313fe09b96934a25a5b0bda0f9c2c99c5e Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 19 Sep 2023 16:28:42 +0200
+Subject: [PATCH] End of lab01
+
+---
+ rapport.md | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..4f66cbb 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,21 @@
++Serie de questions a)
++
++a. Communiquer avec le matériel => Kernel
++b. Fournir un système de fichier => Kernel
++c. Afficher une interface graphique => user
++d. Gérer le temps d’exécution des programmes en cours d’exécution sur le processeur => Kernel
++
++questions b)
++
++so3 => kernel
++usr => user
++
++Série de questions c)
++
++a. usr/lib/libc
++b. Elle se trouve dans la couche user car elle sert d'interface entre les application de l'espace user et les services système fournis par le noyau, ce qui permet aux développeurs de créer des programmes sans avoir à interagir directement avec le noyau.
++c. On ne peut pas utiliser les fonctions de la libc. Le noyau fonctionne dans un espace mémoire protégé, ce qui signifie que de nombreuses fonctions de la libc ne sont pas appropriées ou même disponibles lorsqu'on code au niveau du noyau.
++
++Question d)
++Les architectures arm32 et arm64 sont supportées. chemin : so3/arch
++
+-- 
+GitLab
+

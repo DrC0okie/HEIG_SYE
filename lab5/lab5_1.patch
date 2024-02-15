@@ -1,0 +1,59 @@
+From 8ad12ef3db945f47f073bbbfa2846b7c38cb3c67 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 17 Oct 2023 16:22:14 +0200
+Subject: [PATCH] end of lab05
+
+---
+ usr/src/sh.c | 22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/usr/src/sh.c b/usr/src/sh.c
+index 3569113..1de882e 100644
+--- a/usr/src/sh.c
++++ b/usr/src/sh.c
+@@ -57,6 +57,7 @@ void process_cmd(void) {
+ 	char *argv[ARGS_MAX];
+ 	char filename[30];
+ 	int pid, sig;
++	int background = 0;
+ 
+ 	/* PRIVATE to SYE team */
+ 
+@@ -131,6 +132,22 @@ void process_cmd(void) {
+ 
+ 	/* General case - prepare to launch the application */
+ 
++	// Detect if command is to be executed in the background
++    for(i = 0; i < TOKEN_NR && tokens[i][0] != 0; i++) {
++        if(!strcmp(tokens[i], "&")) {
++            background = 1;
++            tokens[i][0] = 0; // clear the '&' token
++            break;
++        }
++    }
++
++    // If "&" is detected, all tokens after it are ignored
++    if(background) {
++        for(++i; i < TOKEN_NR; i++) {
++            tokens[i][0] = 0;
++        }
++    }
++
+ 	/* Prepare the arguments to be passed to exec() syscall */
+ 	arg_pos = 0;
+ 	while (tokens[arg_pos][0] != 0) {
+@@ -156,7 +173,10 @@ void process_cmd(void) {
+ 
+ 	} else { /* Execution in the parent */
+ 
+-		waitpid(pid_child, NULL, 0);
++		// Wait for the child to be executed
++		if(!background){
++			waitpid(pid_child, NULL, 0);
++		}
+ 	}
+ }
+ 
+-- 
+GitLab
+

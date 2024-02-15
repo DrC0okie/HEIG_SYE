@@ -1,0 +1,178 @@
+From 971ace39108d6c0e688eaec0844dd412908d406c Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Thu, 28 Dec 2023 15:03:41 +0100
+Subject: [PATCH] End of lab12
+
+---
+ usr/host/memsim.c | 117 ++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 93 insertions(+), 24 deletions(-)
+
+diff --git a/usr/host/memsim.c b/usr/host/memsim.c
+index c6835a9..667c19f 100644
+--- a/usr/host/memsim.c
++++ b/usr/host/memsim.c
+@@ -22,12 +22,24 @@
+ #include <stdint.h>
+ 
+ /* Activate memory attributes */
+-#define MEMORY_PTE_ATTRIBUTES_ACTIVE    0
++#define MEMORY_PTE_ATTRIBUTES_ACTIVE    1
++#define REP_8_8                         1
+ 
+-#define MEMORY_PAGE_NUM         256
+-#define MEMORY_PAGE_SIZE        256
++#if REP_8_8
+ 
+-#define PAGE_NUM_SHIFT 8
++#define MEMORY_PAGE_NUM     256
++#define MEMORY_PAGE_SIZE    256
++#define PAGE_NUM_SHIFT      8
++#define MASK                0xFF
++
++#else
++
++#define MEMORY_PAGE_NUM     64
++#define MEMORY_PAGE_SIZE    1024
++#define PAGE_NUM_SHIFT      10
++#define MASK                0x3FF
++
++#endif
+ 
+ /* Defines for step 3 */
+ #define VALID_BIT       (1 << 0)
+@@ -64,9 +76,14 @@ uint8_t main_mem[MEMORY_PAGE_NUM][MEMORY_PAGE_SIZE] = {0};
+  * 
+  * @return  0 on success, -1 on error.
+  */
+-int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+-{
+-    *pte = page_table[vaddr >> PAGE_NUM_SHIFT];
++int virt_to_pte(uint16_t vaddr, uint16_t *pte){
++    uint16_t page_num = vaddr >> PAGE_NUM_SHIFT;
++    
++    if (page_num >= MEMORY_PAGE_NUM){
++        return -1;
++    }
++
++    *pte = page_table[page_num];
+     return 0;
+ }
+ 
+@@ -81,12 +98,33 @@ int virt_to_pte(uint16_t vaddr, uint16_t *pte)
+  */
+ int get_byte(uint16_t vaddr, uint8_t *byte) {
+ 
+-    uint16_t c_pte;
+-    if (virt_to_pte(vaddr, &c_pte) < 0)
+-    {
++    uint16_t pte, page_num, ptrn;
++    int success = virt_to_pte(vaddr, &pte);
++    if (success < 0) {
++        return -1;
++    }
++
++#if MEMORY_PTE_ATTRIBUTES_ACTIVE
++    // Check validity bit
++    if (((pte & VALID_BIT) >> VALID_POS) == 0) {
++        PAGE_FAULT(vaddr, "invalid page");
+         return -1;
+     }
+-    *byte = main_mem[c_pte >> 8][vaddr & 0xFF];
++
++    // Check RWX bits
++    ptrn = (pte & RWX_BITS) >> RWX_POS;
++
++    // write only
++    if (ptrn == W_PATTERN) {
++        PAGE_FAULT(vaddr, "Page is write only");
++         return -1;
++     }
++#endif
++
++    // get rid of the attributes
++    page_num = pte >> PAGE_NUM_SHIFT;
++	*byte = main_mem[page_num][vaddr & MASK];
++
+     return 0;
+ }
+ 
+@@ -100,14 +138,43 @@ int get_byte(uint16_t vaddr, uint8_t *byte) {
+  *          to print an error message
+  */
+ int store_byte(uint16_t vaddr, uint8_t byte) {
+-    uint16_t c_pte;
+-    if (virt_to_pte(vaddr, &c_pte) < 0)
+-    {
++
++    uint16_t pte, page_num;
++    int success = virt_to_pte(vaddr, &pte);
++    if (success < 0) {
++        return -1;
++    }
++
++#if MEMORY_PTE_ATTRIBUTES_ACTIVE
++    // Check validity bit
++    if (((pte & VALID_BIT) >> VALID_POS) == 0) {
++        PAGE_FAULT(vaddr, "invalid page");
++        return -1;
++    }
++
++    // Check RWX bits
++    uint16_t ptrn = (pte & RWX_BITS) >> RWX_POS;
++
++    // read only
++    if (ptrn == R_PATTERN) {
++        PAGE_FAULT(vaddr, "Page is read only");
++        return -1;
++    }
++
++    // execute only
++    if (ptrn == X_PATTERN) {
++        PAGE_FAULT(vaddr, "Page is execute only");
+         return -1;
+     }
+-    main_mem[c_pte >> 8][vaddr & 0xFF] = byte;
++
++#endif
++
++    // get rid of the attributes
++    page_num = pte >> PAGE_NUM_SHIFT;
++    main_mem[page_num][vaddr & MASK] = byte;
++
+     return 0;
+-}
++ }
+ 
+ /**
+  * @brief   Prints an entire page. Can be used for debug.
+@@ -228,17 +295,19 @@ void init_page_table(void) {
+         page_table[i] = ((MEMORY_PAGE_NUM -1) - i) << PAGE_NUM_SHIFT;
+ 
+ #if MEMORY_PTE_ATTRIBUTES_ACTIVE
+-        // TO COMPLETE: Make virtual pages 10 to 12 read-only
+-        
+-
+-        // TO COMPLETE: Valid bit
+-        
+-
+-        // TO COMPLETE: Make virtual pages 5 to 8 not valid 
++        // Make virtual pages 10 to 12 read-only
++        if (i >= 10 && i <= 12) {
++            page_table[i] |= (R_PATTERN << RWX_POS);
++        }
+ 
++        // Make virtual pages 5 to 8 invalid
++        if (i >= 5 && i <= 8) {
++            page_table[i] |= (0 << VALID_POS);
++        } else { // Other bits are valid
++            page_table[i] |= (1 << VALID_POS);
++        }
+ #endif
+     }
+-
+ }
+ 
+ int main(int argc, char *argv[]) {    
+-- 
+GitLab
+

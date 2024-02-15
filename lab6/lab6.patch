@@ -1,0 +1,183 @@
+From 0a493e70585f6220cbe34fa1c55d417790efecc7 Mon Sep 17 00:00:00 2001
+From: DrCookie <timothee.vanhove@heig-vd.ch>
+Date: Tue, 31 Oct 2023 17:00:15 +0100
+Subject: [PATCH] end of lab06
+
+---
+ rapport.md         | 34 ++++++++++++++++
+ usr/host/threads.c | 99 ++++++++++++++++++++++++++++++++++++++++++----
+ 2 files changed, 125 insertions(+), 8 deletions(-)
+
+diff --git a/rapport.md b/rapport.md
+index e69de29..83f9004 100644
+--- a/rapport.md
++++ b/rapport.md
+@@ -0,0 +1,34 @@
++# SYE Labo 06 - Threads
++
++**Author**: Timothée Van Hove
++
++**Date**: 31.10.2023
++
++## Mesure du temps d'execution selon le nombre de threads
++
++J'ai executé la commande time avec le fichier `threads.elf` et ses arguments pour connaître le temps d'execution du programme que nous avons créé:
++
++**1 thread**
++
++real	0m0.005s
++user	0m0.003s
++sys	0m0.001s
++
++**2 threads**
++
++real	0m0.006s
++user	0m0.005s
++sys	0m0.000s
++
++**3 threads**
++
++real	0m0.004s
++user	0m0.005s
++sys	0m0.000s
++
++**4 threads**
++
++real	0m0.007s
++user	0m0.000s
++sys	0m0.005s
++
+diff --git a/usr/host/threads.c b/usr/host/threads.c
+index 07cdd3c..2a9f526 100644
+--- a/usr/host/threads.c
++++ b/usr/host/threads.c
+ 
+ #define LETTERS_NB 26
+@@ -26,7 +27,23 @@ typedef struct  {
+ void *count_letters(void * args) {
+ 	count_param_t *params = (count_param_t *) args;
+ 	
+-	//TO COMPLETE: Count each letter's number of occurences in the part of the text assigned to this thread. Processing must be case-insensitive ('A' and 'a' both count as an occurence of A). Store the results in the given argument structure 
++	for (int i = 0; i < LETTERS_NB; i++)
++		params->counters[i] = 0;
++
++	// Loop over the chunk of text assigned to this thread
++	for (size_t i = 0; i < params->size; ++i){
++		char c = params->text_pointer[i];
++		
++		// Upper case
++		if (c >= A_UPPER_OFFSET && c <= A_UPPER_OFFSET + LETTERS_NB) {
++			++params->counters[c - A_UPPER_OFFSET];
++		} 
++		// Lower case
++		else if (c >= A_LOWER_OFFSET && c <= A_LOWER_OFFSET + LETTERS_NB) {
++			++params->counters[c - A_LOWER_OFFSET];
++		}
++		// Characters outside the uppercase and lowercase alphabets are ignored
++	}
+ 
+ 	return NULL;
+ }
+@@ -74,7 +91,7 @@ char *buffer_from_file(char *filename) {
+ 	}
+ 
+ 	text_size = fseek_filesize(f);
+-	printf("text_size %d\n", text_size);
++	printf("text_size %zu\n", text_size);
+ 
+ 	buffer = malloc(text_size+1);
+ 
+@@ -125,18 +142,84 @@ int main(int argc, char **argv)
+ 		printf("Error: The number of threads must be between 0 and 15");
+ 		return EXIT_FAILURE;
+ 	}
+-    // TO COMPLETE: Load the text and its size
++    
++	// Load the text and its size
++	char *text = buffer_from_file(filename);
++	if (text == NULL) {
++    	fprintf(stderr, "Error: Unable to load text from the file\n");
++    	return EXIT_FAILURE;
++	}
++
++	size_t textLength = strlen(text);
++
++	// Configure and launch threads
++	count_param_t *parameters = (count_param_t*) calloc(thread_num, sizeof(count_param_t));
++
++	if(parameters == NULL){
++		fprintf(stderr, "Error: Memory allocation failed for parameters\n");
++		goto clean_text;
++	}
++
++	pthread_t *threads = (pthread_t*) calloc(thread_num, sizeof(pthread_t));
++
++	if (threads == NULL) {
++		fprintf(stderr, "Error: Memory allocation failed for threads\n");
++		goto clean_parameters;
++	}
+ 
+-    // TO COMPLETE: Configure and launch threads
++    // Calculate base chunk and lefover size
++	size_t chunkSize = textLength / thread_num;
++	size_t leftover = textLength % thread_num;
++
++	for (int i = 0; i < thread_num; ++i) {
++		// Assign the appropriate text chunk to each thread
++		parameters[i].text_pointer = text + i * chunkSize;
++		parameters[i].size = chunkSize;
++		
++		// If it's the last thread, add the leftover characters
++		if (i == thread_num - 1) {
++			parameters[i].size += leftover;
++		}
++
++		// Attempt to create a thread for each chunk of text
++		if (pthread_create(&threads[i], NULL, count_letters, (void*) &parameters[i])) {
++			fprintf(stderr, "Error occured during thread creation\n");
++			goto clean_all;
++		}
++	}
+ 
+-    // TO COMPLETE: Join the threads and compile the results
++	for (int i = 0; i < thread_num; i++) {
++		// Wait for each thread to finish
++		if (pthread_join(threads[i], NULL)) {
++			fprintf(stderr, "Error occured during threads join\n");
++			goto clean_all;
++		}
++
++		// Aggregate the results from each thread
++		for (int j = 0; j < LETTERS_NB; j++) {
++			result_counters[j] += parameters[i].counters[j];
++		}
++	}
+ 
+     /* Display results */
+ 	for (int i = 0; i < LETTERS_NB; ++i) {
+-		printf("Number of %c: %d\n", (char)(i+A_LOWER_OFFSET), result_counters[i]);
++		printf("Number of %c: %zu\n", (char)(i+A_LOWER_OFFSET), result_counters[i]);
+ 	}
++	
++	//Free allocated memory
++	free(text);
++	free(threads);
++	free(parameters);
++	return EXIT_SUCCESS;
+ 
+-	// TO COMPLETE: Free allocated memory
++clean_all:
++	free(threads);
+ 
+-	return EXIT_SUCCESS;
++clean_parameters:
++	free(parameters);
++
++clean_text:
++	free(text);
++
++	return EXIT_FAILURE;
+ }
+-- 
+GitLab
+
